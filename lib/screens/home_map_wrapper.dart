@@ -16,7 +16,7 @@ class HomeMapWrapper extends StatefulWidget {
 
 class _HomeMapWrapperState extends State<HomeMapWrapper> {
   bool _showMap = true;
-  String _currentSortBy = 'rating';
+  String _currentSortBy = 'distance'; // по умолчанию — ближайшие клубы
   List<Map<String, dynamic>> _clubs = [];
   List<Map<String, dynamic>> _filteredClubs = [];
   bool _isLoading = true;
@@ -31,17 +31,13 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
   }
 
   void _toggleView() {
-    setState(() {
-      _showMap = !_showMap;
-    });
+    setState(() => _showMap = !_showMap);
   }
 
-  /// Получаем текущие координаты пользователя
+  /// Получаем текущее местоположение пользователя
   Future<void> _determinePosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      throw Exception('Службы геолокации отключены.');
-    }
+    if (!serviceEnabled) throw Exception('Службы геолокации отключены.');
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -55,23 +51,23 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
       throw Exception('Доступ к геолокации навсегда запрещён.');
     }
 
-    final position = await Geolocator.getCurrentPosition();
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
     setState(() {
       _currentPosition = position;
     });
   }
 
-  /// Загружаем клубы и считаем расстояние
+  /// Загружаем клубы из Supabase и вычисляем расстояние
   Future<void> _fetchClubs() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       await _determinePosition();
       final fetchedClubs = await _dataService.fetchClubs();
 
-      // Если у клуба есть координаты — вычисляем расстояние
       for (var club in fetchedClubs) {
         final lat = club['latitude'];
         final lon = club['longitude'];
@@ -82,9 +78,9 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
             lat,
             lon,
           );
-          club['distance'] = distance / 1000.0; // в километрах
+          club['distance'] = distance / 1000.0; // км
         } else {
-          club['distance'] = double.infinity; // неизвестно — в конец списка
+          club['distance'] = double.infinity;
         }
       }
 
@@ -102,11 +98,7 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -128,14 +120,10 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     _applySorting(filtered);
   }
 
-  /// Сортировка (популярность / близость / рейтинг)
+  /// Сортировка — по близости или рейтингу
   void _applySorting(List<Map<String, dynamic>> list) {
     list.sort((a, b) {
       switch (_currentSortBy) {
-        case 'popularity':
-          final int likesA = (a['likes'] ?? 0) as int;
-          final int likesB = (b['likes'] ?? 0) as int;
-          return likesB.compareTo(likesA);
         case 'distance':
           final double distA = (a['distance'] ?? double.infinity).toDouble();
           final double distB = (b['distance'] ?? double.infinity).toDouble();
@@ -157,43 +145,51 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     widget.onClubsUpdated?.call(_filteredClubs);
   }
 
-  /// Меню фильтров
-  void _showSortOptions() async {
-    final result = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        MediaQuery.of(context).size.width - 150,
-        AppBar().preferredSize.height + MediaQuery.of(context).padding.top + 10,
-        0,
-        0,
-      ),
-      items: [
-        _buildSortItem('По популярности', 'popularity'),
-        _buildSortItem('По близости', 'distance'),
-        _buildSortItem('По рейтингу', 'rating'),
-      ],
-      color: AppColors.cardBackground,
-    );
+/// Меню фильтров с сортировкой
+void _showSortOptions() async {
+  final result = await showMenu<String>(
+    context: context,
+    position: RelativeRect.fromLTRB(
+      MediaQuery.of(context).size.width - 150,
+      AppBar().preferredSize.height + MediaQuery.of(context).padding.top + 10,
+      0,
+      0,
+    ),
+    items: [
+      _buildSortItem('По близости', 'distance'),
+      _buildSortItem('По рейтингу', 'rating'),
+    ],
+    color: AppColors.cardBackground,
+  );
 
-    if (result != null && result != _currentSortBy) {
-      setState(() => _currentSortBy = result);
-      _applySearchFilter(_searchController.text);
-    }
+  // Если выбрали новый фильтр — применяем сортировку
+  if (result != null && result != _currentSortBy) {
+    setState(() => _currentSortBy = result);
+    _applySearchFilter(_searchController.text); // обновляем фильтр/сортировку
   }
+}
 
-  PopupMenuItem<String> _buildSortItem(String title, String value) {
-    final isSelected = _currentSortBy == value;
-    return PopupMenuItem<String>(
-      value: value,
-      child: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? AppColors.accentOrange : AppColors.primaryText,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+PopupMenuItem<String> _buildSortItem(String title, String value) {
+  final isSelected = _currentSortBy == value;
+  return PopupMenuItem<String>(
+    value: value,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: AppColors.primaryText,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
-      ),
-    );
-  }
+        if (isSelected)
+          const Icon(Icons.check, color: AppColors.accentOrange)
+      ],
+    ),
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +259,7 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
                 clubs: _filteredClubs,
                 isLoading: _isLoading,
                 showAppBar: false,
-                showFloatingButton: false,
+                showFloatingButton: true,
               ),
               HomeFeedScreen(
                 clubs: _filteredClubs,

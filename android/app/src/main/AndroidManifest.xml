@@ -8,8 +8,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="find_club"
-        android:icon="@mipmap/ic_launcher">
+        android:label="FindClub"
+        android:icon="@mipmap/launcher_icon">
 
         <activity
             android:name=".MainActivity"

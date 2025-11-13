@@ -40,6 +40,7 @@ dependencies:
   google_maps_flutter: ^2.3.0
   shared_preferences: ^2.1.0
   yandex_mapkit: ^4.2.1
+  flutter_native_splash: ^2.4.0
   
   
 dev_dependencies:
@@ -52,6 +53,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,7 +69,31 @@ flutter:
   assets:
   - assets/icons/club_marker.png
   - assets/icons/user_marker.png
+  - assets/images/logo.png
 
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo_1024.png" # Путь к вашему мастер-лого
+  min_sdk_android: 21
+  web:
+    generate: true
+  windows:
+    generate: true
+  macos:
+    generate: true
+
+  adaptive_icon_background: "#1A1A1A"
+  adaptive_icon_foreground: "assets/images/logo_foreground.png"
+
+flutter_native_splash:
+  color: "#1A1A1A" 
+  image: assets/images/logo.png 
+  android_12:
+    image: assets/images/logo.png
+    color: "#1A1A1A"
+    ios: true
+    web: false
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

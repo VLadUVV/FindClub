@@ -21,12 +21,8 @@ class CustomBottomNavBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: <Widget>[
-              // 0: Главная
               _buildNavItem(Icons.home, 0, selectedIndex, 'Главная'), 
-              // 1: Избранное
               _buildNavItem(Icons.favorite_border, 1, selectedIndex, 'Избранное'),
-              // 2: Профиль (Если нужен)
-              // _buildNavItem(Icons.person_outline, 2, selectedIndex, 'Профиль'), 
             ],
           ),
         ),

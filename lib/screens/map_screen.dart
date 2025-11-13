@@ -9,6 +9,8 @@ class MapScreen extends StatefulWidget {
   final bool isLoading;
   final bool showAppBar;
   final bool showFloatingButton;
+  final Position? userPosition;
+  final String? sortBy;
 
   const MapScreen({
     super.key,
@@ -16,6 +18,8 @@ class MapScreen extends StatefulWidget {
     required this.isLoading,
     this.showAppBar = true,
     this.showFloatingButton = true,
+    this.userPosition,
+    this.sortBy,
   });
 
   @override
@@ -25,18 +29,26 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   late YandexMapController _controller;
   bool _mapReady = false;
+  Point _userLocation = const Point(latitude: 55.751244, longitude: 37.618423);
   bool _positionLoaded = false;
 
-  Point _userLocation = const Point(latitude: 55.751244, longitude: 37.618423);
   List<MapObject> _mapObjects = [];
 
   @override
   void initState() {
     super.initState();
-    _initUserLocation();
+    if (widget.userPosition != null) {
+      _userLocation = Point(
+        latitude: widget.userPosition!.latitude,
+        longitude: widget.userPosition!.longitude,
+      );
+      _positionLoaded = true;
+    }
+    if (!_positionLoaded) {
+      _initUserLocation();
+    }
   }
 
-  /// Получаем текущее местоположение пользователя с высокой точностью
   Future<void> _initUserLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -48,44 +60,76 @@ class _MapScreenState extends State<MapScreen> {
         if (permission == LocationPermission.denied) return;
       }
       if (permission == LocationPermission.deniedForever) return;
-
-      // Используем последнюю известную позицию (быстро)
-      final lastPosition = await Geolocator.getLastKnownPosition();
-      if (lastPosition != null) {
-        _userLocation =
-            Point(latitude: lastPosition.latitude, longitude: lastPosition.longitude);
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        setState(() {
+          _userLocation = Point(latitude: last.latitude, longitude: last.longitude);
+          _positionLoaded = true;
+        });
       }
-
-      // Запрашиваем свежие координаты с максимальной точностью
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.bestForNavigation,
-        forceAndroidLocationManager: true,
-      );
+          desiredAccuracy: LocationAccuracy.bestForNavigation,
+          forceAndroidLocationManager: true);
 
       setState(() {
         _userLocation = Point(latitude: pos.latitude, longitude: pos.longitude);
         _positionLoaded = true;
       });
-
       if (_mapReady) {
         await _moveToUser();
         _updateMapObjects();
       }
     } catch (e) {
-      debugPrint('Ошибка при получении геопозиции: $e');
+      debugPrint('Ошибка при получении позиции: $e');
     }
   }
+  List<Map<String, dynamic>> _clubsToShow() {
+    final mode = widget.sortBy ?? 'rating';
+    if (mode == 'distance' && _positionLoaded) {
+      final valid = widget.clubs
+          .where((c) => c['latitude'] != null && c['longitude'] != null)
+          .toList();
+      valid.sort((a, b) {
+        final aDist = Geolocator.distanceBetween(
+          _userLocation.latitude,
+          _userLocation.longitude,
+          (a['latitude'] as num).toDouble(),
+          (a['longitude'] as num).toDouble(),
+        );
+        final bDist = Geolocator.distanceBetween(
+          _userLocation.latitude,
+          _userLocation.longitude,
+          (b['latitude'] as num).toDouble(),
+          (b['longitude'] as num).toDouble(),
+        );
+        return aDist.compareTo(bDist);
+      });
+      return valid.take(5).toList();
+    }
 
-  /// Создание маркеров клубов + пользователя с правильной привязкой
+    if (mode == 'rating') {
+      final all = [...widget.clubs];
+      all.sort((a, b) {
+        final ra = double.tryParse(a['rating']?.toString() ?? '0') ?? 0.0;
+        final rb = double.tryParse(b['rating']?.toString() ?? '0') ?? 0.0;
+        return rb.compareTo(ra);
+      });
+      return all;
+    }
+    return widget.clubs;
+  }
+
   List<MapObject> _buildMapObjects() {
     final List<MapObject> objects = [];
 
-    // Маркеры клубов
-    for (final club in widget.clubs) {
-      final lat = (club['latitude'] ?? 0).toDouble();
-      final lon = (club['longitude'] ?? 0).toDouble();
-      if (lat == 0 || lon == 0) continue;
+    final toShow = _clubsToShow();
+    for (final club in toShow) {
+      final latRaw = club['latitude'];
+      final lonRaw = club['longitude'];
+      if (latRaw == null || lonRaw == null) continue;
 
+      final lat = (latRaw as num).toDouble();
+      final lon = (lonRaw as num).toDouble();
       final id = club['id']?.toString() ?? '${lat}_$lon';
       final name = club['name'] ?? 'Клуб';
       final rating = (club['rating'] as num?)?.toStringAsFixed(1) ?? 'N/A';
@@ -98,7 +142,7 @@ class _MapScreenState extends State<MapScreen> {
             PlacemarkIconStyle(
               image: BitmapDescriptor.fromAssetImage('assets/icons/club_marker.png'),
               scale: 1.3,
-              anchor: const Offset(0.5, 1.0), // нижний центр на точке
+              anchor: const Offset(0.5, 1.0),
             ),
           ),
           onTap: (self, point) {
@@ -109,8 +153,6 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
     }
-
-    // Маркер пользователя
     objects.add(
       PlacemarkMapObject(
         mapId: const MapObjectId('user_marker'),
@@ -119,7 +161,7 @@ class _MapScreenState extends State<MapScreen> {
           PlacemarkIconStyle(
             image: BitmapDescriptor.fromAssetImage('assets/icons/user_marker.png'),
             scale: 1.6,
-            anchor: const Offset(0.5, 0.5), // центр на позиции пользователя
+            anchor: const Offset(0.5, 0.5),
           ),
         ),
       ),
@@ -128,76 +170,54 @@ class _MapScreenState extends State<MapScreen> {
     return objects;
   }
 
-  /// Обновляем маркеры на карте
   void _updateMapObjects() {
     setState(() {
       _mapObjects = _buildMapObjects();
     });
   }
 
-  /// Перемещение к пользователю
-  Future<void> _moveToUser() async {
+  Future<void> _moveToUser({double zoom = 14.5}) async {
     if (!_mapReady) return;
-    await _controller.moveCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: _userLocation, zoom: 15),
-      ),
-      animation: const MapAnimation(type: MapAnimationType.smooth, duration: 0.7),
-    );
-  }
-
-  /// Центрирование карты на всех точках (пользователь + клубы)
-  Future<void> _fitToAllMarkers() async {
-    if (!_mapReady || widget.clubs.isEmpty) return;
-
-    final allPoints = <Point>[
-      _userLocation,
-      ...widget.clubs
-          .where((c) => c['latitude'] != null && c['longitude'] != null)
-          .map((c) => Point(
-                latitude: (c['latitude'] as num).toDouble(),
-                longitude: (c['longitude'] as num).toDouble(),
-              )),
-    ];
-
-    if (allPoints.isEmpty) return;
-
-    await _controller.moveCamera(
-      CameraUpdate.newGeometry(Geometry.fromBoundingBox(
-        BoundingBox(
-          northEast: Point(
-            latitude: allPoints.map((e) => e.latitude).reduce((a, b) => a > b ? a : b),
-            longitude: allPoints.map((e) => e.longitude).reduce((a, b) => a > b ? a : b),
-          ),
-          southWest: Point(
-            latitude: allPoints.map((e) => e.latitude).reduce((a, b) => a < b ? a : b),
-            longitude: allPoints.map((e) => e.longitude).reduce((a, b) => a < b ? a : b),
-          ),
-        ),
-      )),
-      animation: const MapAnimation(type: MapAnimationType.smooth, duration: 0.8),
-    );
+    try {
+      await _controller.moveCamera(
+        CameraUpdate.newCameraPosition(CameraPosition(target: _userLocation, zoom: zoom)),
+        animation: const MapAnimation(type: MapAnimationType.smooth, duration: 0.6),
+      );
+    } catch (e) {
+      debugPrint('Ошибка при перемещении камеры: $e');
+    }
   }
 
   @override
   void didUpdateWidget(covariant MapScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.clubs != widget.clubs && _mapReady) {
+    final clubsChanged = oldWidget.clubs != widget.clubs;
+    final sortChanged = (oldWidget.sortBy ?? 'rating') != (widget.sortBy ?? 'rating');
+    final externalPosChanged = (oldWidget.userPosition?.latitude != widget.userPosition?.latitude) ||
+        (oldWidget.userPosition?.longitude != widget.userPosition?.longitude);
+
+    if ((clubsChanged || sortChanged || externalPosChanged) && _mapReady) {
+      if (widget.userPosition != null) {
+        _userLocation = Point(
+          latitude: widget.userPosition!.latitude,
+          longitude: widget.userPosition!.longitude,
+        );
+        _positionLoaded = true;
+      }
       _updateMapObjects();
-      _fitToAllMarkers();
+      if ((widget.sortBy ?? 'rating') == 'distance' && _positionLoaded) {
+        _moveToUser();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.accentOrange),
-      );
+      return const Center(child: CircularProgressIndicator(color: AppColors.accentOrange));
     }
 
-    _updateMapObjects();
-
+    final mapObjects = _buildMapObjects();
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: widget.showAppBar
@@ -206,43 +226,33 @@ class _MapScreenState extends State<MapScreen> {
               elevation: 0,
               title: const Text(
                 'Карта клубов',
-                style: TextStyle(
-                  color: AppColors.primaryText,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold),
               ),
             )
           : null,
       body: Stack(
         children: [
           YandexMap(
-            mapObjects: _mapObjects,
+            mapObjects: mapObjects,
             onMapCreated: (controller) async {
               _controller = controller;
               _mapReady = true;
-              await _fitToAllMarkers();
+              if (_positionLoaded) {
+                await _moveToUser();
+              } else {
+                _updateMapObjects();
+              }
             },
           ),
           if (widget.showFloatingButton)
             Positioned(
               right: 16,
               bottom: 24,
-              child: Column(
-                children: [
-                  FloatingActionButton(
-                    backgroundColor: AppColors.accentOrange,
-                    onPressed: _moveToUser,
-                    heroTag: 'center_user',
-                    child: const Icon(Icons.my_location, color: AppColors.background),
-                  ),
-                  const SizedBox(height: 12),
-                  FloatingActionButton(
-                    backgroundColor: Colors.blueGrey,
-                    onPressed: _initUserLocation,
-                    heroTag: 'refresh_user',
-                    child: const Icon(Icons.gps_fixed, color: Colors.white),
-                  ),
-                ],
+              child: FloatingActionButton(
+                backgroundColor: AppColors.accentOrange,
+                onPressed: _moveToUser,
+                heroTag: 'center_user',
+                child: const Icon(Icons.my_location, color: AppColors.background),
               ),
             ),
         ],

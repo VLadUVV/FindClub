@@ -1,41 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/main_navigation.dart';
+import 'screens/splash_screen.dart';
 import 'utils/app_colors.dart';
 
-const supabaseURL = 'https://uhghujpoonfwldierekd.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVoZ2h1anBvb25md2xkaWVyZWtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4NjA3OTUsImV4cCI6MjA3ODQzNjc5NX0.iO6qMsVdmIfzTl-zgBdmX_Qb8_cMFDjIFQ5BfvcztXU';
-
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // 1️⃣ Инициализация Supabase
-  await Supabase.initialize(
-    url: supabaseURL,
-    anonKey: supabaseKey,
-  );
-
-  final supabase = Supabase.instance.client;
-
-  // Попытка анонимного входа
-  try {
-    if (supabase.auth.currentUser == null) {
-      final response = await supabase.auth.signInAnonymously();
-      if (response.user != null) {
-        debugPrint('✅ Анонимный вход выполнен, uid: ${response.user!.id}');
-      } else {
-        debugPrint('⚠️ Анонимный вход не сработал');
-      }
-    } else {
-      debugPrint('✅ Пользователь уже вошёл: ${supabase.auth.currentUser!.id}');
-    }
-  } on AuthApiException catch (e) {
-    debugPrint('❌ Ошибка аутентификации: ${e.message}');
-  } catch (e) {
-    debugPrint('❌ Неизвестная ошибка при аутентификации: $e');
-  }
-
-  // 2️⃣ Запуск приложения
+  WidgetsFlutterBinding.ensureInitialized(); 
   runApp(const MyApp());
 }
 
@@ -64,7 +32,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MainNavigation(),
+      home: const SplashScreen(),
     );
   }
 }

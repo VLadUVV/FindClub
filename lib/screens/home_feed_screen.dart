@@ -4,11 +4,8 @@ import '../widgets/club/club_feed_item.dart';
 import 'club_detail_screen.dart';
 
 class HomeFeedScreen extends StatelessWidget {
-  // Параметры, передаваемые из HomeMapWrapper
   final List<Map<String, dynamic>> clubs;
   final bool isLoading;
-  
-  // Старые параметры для совместимости (игнорируются HomeMapWrapper)
   final bool showAppBar;
   final bool showFloatingButton; 
 
@@ -46,7 +43,6 @@ class HomeFeedScreen extends StatelessWidget {
           },
         );
       },
-      // Отступ для плавающей кнопки в HomeMapWrapper
       padding: const EdgeInsets.only(bottom: 100), 
     );
   }

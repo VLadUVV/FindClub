@@ -1,10 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseDataService {
-  // Клиент Supabase
   final SupabaseClient _client = Supabase.instance.client;
 
-  /// Получить список клубов (с возможностью сортировки)
   Future<List<Map<String, dynamic>>> fetchClubs({String sortBy = 'rating'}) async {
     final orderColumn = switch (sortBy) {
       'name' => 'name',
@@ -18,7 +16,6 @@ class SupabaseDataService {
           .select('*')
           .order(orderColumn, ascending: false);
 
-      // Supabase возвращает dynamic → приводим к List<Map<String, dynamic>>
       return (response as List).cast<Map<String, dynamic>>();
     } on PostgrestException catch (e) {
       print('Supabase error while fetching clubs: ${e.message}');
@@ -29,7 +26,6 @@ class SupabaseDataService {
     }
   }
 
-  /// Получить данные одного клуба по ID
   Future<Map<String, dynamic>?> fetchClubById(String clubId) async {
     try {
       final response = await _client
