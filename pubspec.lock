@@ -741,6 +741,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.10.3"
+  switch_orientation:
+    dependency: "direct main"
+    description:
+      name: switch_orientation
+      sha256: ea0c8bca9abface473b081022e1ba95ead89ab7b3baa00a5c07dee5c36b196c0
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.1"
   term_glyph:
     dependency: transitive
     description:

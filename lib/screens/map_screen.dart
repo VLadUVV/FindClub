@@ -11,6 +11,7 @@ class MapScreen extends StatefulWidget {
   final bool showFloatingButton;
   final Position? userPosition;
   final String? sortBy;
+  final VoidCallback? onLocationReady;
 
   const MapScreen({
     super.key,
@@ -20,6 +21,7 @@ class MapScreen extends StatefulWidget {
     this.showFloatingButton = true,
     this.userPosition,
     this.sortBy,
+    this.onLocationReady,
   });
 
   @override
@@ -48,41 +50,77 @@ class _MapScreenState extends State<MapScreen> {
       _initUserLocation();
     }
   }
+  Future<bool?> _askEnableLocationService() {
+  return showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Геолокация отключена'),
+        content: const Text(
+          'Для корректной работы приложения включите геолокацию.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              Geolocator.openLocationSettings();
+              Navigator.pop(context, true);
+            },
+            child: const Text('Включить'),
+          ),
+        ],
+      );
+    },
+  );
+}
 
-  Future<void> _initUserLocation() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-      if (permission == LocationPermission.deniedForever) return;
-      final last = await Geolocator.getLastKnownPosition();
-      if (last != null) {
-        setState(() {
-          _userLocation = Point(latitude: last.latitude, longitude: last.longitude);
-          _positionLoaded = true;
-        });
-      }
-      final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.bestForNavigation,
-          forceAndroidLocationManager: true);
+ Future<void> _initUserLocation() async {
+  try {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      final enabled = await _askEnableLocationService();
 
-      setState(() {
-        _userLocation = Point(latitude: pos.latitude, longitude: pos.longitude);
-        _positionLoaded = true;
-      });
-      if (_mapReady) {
-        await _moveToUser();
-        _updateMapObjects();
+      if (enabled == true) {
+        await Future.delayed(const Duration(seconds: 2));
+        return _initUserLocation();
+      } else {
+        return;
       }
-    } catch (e) {
-      debugPrint('Ошибка при получении позиции: $e');
     }
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Разрешение на геолокацию заблокировано в системе.')),
+      );
+      return;
+    }
+    Position pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    setState(() {
+      _userLocation = Point(latitude: pos.latitude, longitude: pos.longitude);
+      _positionLoaded = true;
+      widget.onLocationReady?.call();
+    });
+
+    if (_mapReady) {
+      await _moveToUser();
+      _updateMapObjects();
+    }
+  } catch (e) {
+    debugPrint('Ошибка при получении позиции: $e');
   }
+}
   List<Map<String, dynamic>> _clubsToShow() {
     final mode = widget.sortBy ?? 'rating';
     if (mode == 'distance' && _positionLoaded) {
@@ -104,7 +142,7 @@ class _MapScreenState extends State<MapScreen> {
         );
         return aDist.compareTo(bDist);
       });
-      return valid.take(5).toList();
+      // return valid.take(5).toList();
     }
 
     if (mode == 'rating') {
@@ -147,7 +185,16 @@ class _MapScreenState extends State<MapScreen> {
           ),
           onTap: (self, point) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$name — рейтинг $rating')),
+              SnackBar(
+                behavior: SnackBarBehavior.fixed,
+                duration: Duration(milliseconds: 2000),
+                content: GestureDetector(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                  child: Text('$name — рейтинг $rating'),
+                ),
+              ),
             );
           },
         ),
@@ -166,7 +213,6 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
-
     return objects;
   }
 
@@ -188,28 +234,28 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  @override
-  void didUpdateWidget(covariant MapScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final clubsChanged = oldWidget.clubs != widget.clubs;
-    final sortChanged = (oldWidget.sortBy ?? 'rating') != (widget.sortBy ?? 'rating');
-    final externalPosChanged = (oldWidget.userPosition?.latitude != widget.userPosition?.latitude) ||
-        (oldWidget.userPosition?.longitude != widget.userPosition?.longitude);
+  // @override
+  // void didUpdateWidget(covariant MapScreen oldWidget) {
+  //   super.didUpdateWidget(oldWidget);
+  //   final clubsChanged = oldWidget.clubs != widget.clubs;
+  //   final sortChanged = (oldWidget.sortBy ?? 'rating') != (widget.sortBy ?? 'rating');
+  //   final externalPosChanged = (oldWidget.userPosition?.latitude != widget.userPosition?.latitude) ||
+  //       (oldWidget.userPosition?.longitude != widget.userPosition?.longitude);
 
-    if ((clubsChanged || sortChanged || externalPosChanged) && _mapReady) {
-      if (widget.userPosition != null) {
-        _userLocation = Point(
-          latitude: widget.userPosition!.latitude,
-          longitude: widget.userPosition!.longitude,
-        );
-        _positionLoaded = true;
-      }
-      _updateMapObjects();
-      if ((widget.sortBy ?? 'rating') == 'distance' && _positionLoaded) {
-        _moveToUser();
-      }
-    }
-  }
+  //   if ((clubsChanged || sortChanged || externalPosChanged) && _mapReady) {
+  //     if (widget.userPosition != null) {
+  //       _userLocation = Point(
+  //         latitude: widget.userPosition!.latitude,
+  //         longitude: widget.userPosition!.longitude,
+  //       );
+  //       _positionLoaded = true;
+  //     }
+  //     _updateMapObjects();
+  //     if ((widget.sortBy ?? 'rating') == 'distance' && _positionLoaded) {
+  //       _moveToUser();
+  //     }
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

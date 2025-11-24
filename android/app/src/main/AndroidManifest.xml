@@ -2,7 +2,6 @@
     package="com.example.find_club"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Разрешения на уровне manifest -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -38,8 +37,6 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-
-    <!-- Для ProcessTextPlugin -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

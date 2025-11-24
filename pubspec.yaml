@@ -41,6 +41,7 @@ dependencies:
   shared_preferences: ^2.1.0
   yandex_mapkit: ^4.2.1
   flutter_native_splash: ^2.4.0
+  switch_orientation: ^0.0.1
   
   
 dev_dependencies:
