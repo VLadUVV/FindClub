@@ -42,6 +42,8 @@ dependencies:
   yandex_mapkit: ^4.2.1
   flutter_native_splash: ^2.4.0
   switch_orientation: ^0.0.1
+  connectivity_plus: ^6.0.3
+  app_settings: ^5.1.1
   
   
 dev_dependencies:
