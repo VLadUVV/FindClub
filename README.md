@@ -1,16 +1,155 @@
-# find_club
+````markdown
+# FindClub — мобильное приложение для поиска клубов по интересам
 
-A new Flutter project.
+## 1. Описание проекта
+**FindClub** — это мобильное приложение, разработанное на **Flutter**, предназначенное для поиска клубов и тематических организаций.  
+Все данные о клубах загружаются из удалённой базы данных **Supabase**, а работа пользователя осуществляется локально, без создания учётной записи.
 
-## Getting Started
+Приложение включает следующие возможности:
+- Просмотр списка клубов с информацией.
+- Фильтрация клубов по категории.
+- Поиск клубов по названию.
+- Просмотр клуба на отдельном экране.
+- Добавление клубов в избранное (локальное сохранение).
+- Просмотр клуба на карте (Yandex MapKit).
+- Полноценная внутренняя навигация между экранами.
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## 2. Основные функции приложения
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 2.1. Загрузочный экран (Splash Screen)
+- Инициализация приложения.
+- Установка соединения с Supabase.
+- Проверка анонимного доступа.
+- Переход к основным модулям системы.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### 2.2. Главная навигация (main_navigation.dart)
+- Переключение между разделами приложения:
+  - Лента клубов
+  - Избранное
+  - Карта
+  - Настройки
+- Реализована через **BottomNavigationBar**.
+
+### 2.3. Модуль отображения клубов (clubs_feed.dart)
+- Загрузка списка клубов из Supabase.
+- Отображение карточек клубов.
+- Фильтрация по категориям.
+- Поиск по названию.
+- Добавление в избранное.
+
+### 2.4. Модуль подробного описания клуба (club_details.dart)
+- Вывод полного описания и параметров клуба.
+- Фотография, адрес, контакты, расписание.
+- Маршрут к клубу через карту.
+- Добавление/удаление из избранного.
+
+### 2.5. Модуль карты (map_screen.dart)
+- Отображение клубов на карте.
+- Использование Yandex MapKit.
+- Навигация к выбранному клубу.
+- Обработка ошибок и отсутствия интернета.
+
+### 2.6. Модуль избранного (favorites_screen.dart)
+- Локальное хранилище избранных клубов.
+- Хранение данных через SharedPreferences.
+- Удаление клубов из избранного.
+- Передача данных в другие модули навигации.
+
+### 2.7. Настройки (settings_screen.dart)
+- Информация о приложении.
+- Контакты разработчика.
+- Очистка избранного.
+- Отключение анимаций или оптимизация (при необходимости).
+
+---
+
+## 3. Используемые технологии
+
+| Технология | Назначение |
+|-----------|------------|
+| **Flutter 3.x** | Основа приложения |
+| **Supabase** | Облачная база данных клубов |
+| **Dart** | Язык разработки |
+| **Yandex MapKit** | Отображение карты и геолокации |
+| **SharedPreferences** | Хранение избранного |
+| **Provider / setState** | Управление состоянием |
+
+---
+
+## 4. Установка и запуск
+
+### 4.1. Клонирование проекта
+```bash
+git clone https://github.com/your_repo/find_club.git
+cd find_club
+````
+
+### 4.2. Установка зависимостей
+
+```bash
+flutter pub get
+```
+
+### 4.3. Конфигурация Supabase
+
+В файле `supabase_config.dart` укажите:
+
+```dart
+const String supabaseURL = "ВАШ_URL";
+const String supabaseKey = "ВАШ_KEY";
+```
+
+### 4.4. Запуск приложения
+
+```bash
+flutter run
+```
+
+---
+
+## 5. Структура проекта
+
+```
+lib/
+├── main.dart
+├── splash_screen.dart
+├── navigation/
+│   └── main_navigation.dart
+├── screens/
+│   ├── clubs_feed.dart
+│   ├── favorites_screen.dart
+│   ├── map_screen.dart
+│   ├── settings_screen.dart
+│   └── club_details.dart
+├── widgets/
+│   └── club_card.dart
+├── services/
+│   ├── supabase_service.dart
+│   └── favorites_service.dart
+└── theme/
+    ├── app_colors.dart
+    └── text_styles.dart
+```
+
+---
+
+## 6. Требования
+
+* Flutter SDK 3.x
+* Dart 3.x
+* Android SDK / Xcode
+* Подключение к интернету для загрузки данных
+
+---
+
+## 7. Автор проекта
+
+**Разработчик:** Владислав Унгефук
+E-mail: [ungefuk.vlad@mail.ru]
+GitHub: [https://github.com/VLadUVV]
+
+---
+
+
