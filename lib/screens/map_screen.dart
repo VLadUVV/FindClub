@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:yandex_mapkit/yandex_mapkit.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:app_settings/app_settings.dart';
 import '../utils/app_colors.dart';
 
 class MapScreen extends StatefulWidget {
@@ -11,6 +14,7 @@ class MapScreen extends StatefulWidget {
   final bool showFloatingButton;
   final Position? userPosition;
   final String? sortBy;
+  final VoidCallback? onLocationReady;
 
   const MapScreen({
     super.key,
@@ -20,6 +24,7 @@ class MapScreen extends StatefulWidget {
     this.showFloatingButton = true,
     this.userPosition,
     this.sortBy,
+    this.onLocationReady,
   });
 
   @override
@@ -33,10 +38,12 @@ class _MapScreenState extends State<MapScreen> {
   bool _positionLoaded = false;
 
   List<MapObject> _mapObjects = [];
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
+
     if (widget.userPosition != null) {
       _userLocation = Point(
         latitude: widget.userPosition!.latitude,
@@ -44,37 +51,149 @@ class _MapScreenState extends State<MapScreen> {
       );
       _positionLoaded = true;
     }
+
     if (!_positionLoaded) {
       _initUserLocation();
     }
+
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((_) async {
+      final hasNet = await _hasRealConnection();
+      if (hasNet && !_positionLoaded) {
+        await _initUserLocation();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<bool> _hasRealConnection() async {
+    try {
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 3));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool?> _askEnableInternet() async {
+    final enabled = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Нет подключения к интернету'),
+          content: const Text(
+            'Для корректной работы приложения необходимо включить интернет.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                AppSettings.openAppSettings(type: AppSettingsType.dataRoaming);
+                Navigator.pop(context, true);
+              },
+              child: const Text('Мобильные данные'),
+            ),
+            TextButton(
+              onPressed: () {
+                AppSettings.openAppSettings(type: AppSettingsType.wifi);
+                Navigator.pop(context, true);
+              },
+              child: const Text('Wi-Fi'),
+            ),
+          ],
+        );
+      },
+    );
+    
+    if (enabled == true && !_positionLoaded) {
+      await Future.delayed(const Duration(seconds: 1));
+      await _initUserLocation();
+    }
+
+    return enabled;
+  }
+
+  Future<bool?> _askEnableLocationService() async {
+    final enabled = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Геолокация отключена'),
+          content: const Text(
+            'Для корректной работы приложения включите геолокацию.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                Geolocator.openLocationSettings();
+                Navigator.pop(context, true);
+              },
+              child: const Text('Включить'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (enabled == true && !_positionLoaded) {
+      await Future.delayed(const Duration(seconds: 1));
+      await _initUserLocation();
+    }
+
+    return enabled;
   }
 
   Future<void> _initUserLocation() async {
     try {
+      // Проверка интернета
+      final hasNet = await _hasRealConnection();
+      if (!hasNet) {
+        await _askEnableInternet();
+        return;
+      }
+
+      // Проверка геолокации
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!serviceEnabled) {
+        await _askEnableLocationService();
+        return;
+      }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) return;
       }
-      if (permission == LocationPermission.deniedForever) return;
-      final last = await Geolocator.getLastKnownPosition();
-      if (last != null) {
-        setState(() {
-          _userLocation = Point(latitude: last.latitude, longitude: last.longitude);
-          _positionLoaded = true;
-        });
+
+      if (permission == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Разрешение на геолокацию заблокировано в системе.')),
+        );
+        return;
       }
-      final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.bestForNavigation,
-          forceAndroidLocationManager: true);
+
+      Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
 
       setState(() {
         _userLocation = Point(latitude: pos.latitude, longitude: pos.longitude);
         _positionLoaded = true;
+        widget.onLocationReady?.call();
       });
+
       if (_mapReady) {
         await _moveToUser();
         _updateMapObjects();
@@ -83,6 +202,7 @@ class _MapScreenState extends State<MapScreen> {
       debugPrint('Ошибка при получении позиции: $e');
     }
   }
+
   List<Map<String, dynamic>> _clubsToShow() {
     final mode = widget.sortBy ?? 'rating';
     if (mode == 'distance' && _positionLoaded) {
@@ -104,7 +224,6 @@ class _MapScreenState extends State<MapScreen> {
         );
         return aDist.compareTo(bDist);
       });
-      return valid.take(5).toList();
     }
 
     if (mode == 'rating') {
@@ -116,6 +235,7 @@ class _MapScreenState extends State<MapScreen> {
       });
       return all;
     }
+
     return widget.clubs;
   }
 
@@ -147,12 +267,22 @@ class _MapScreenState extends State<MapScreen> {
           ),
           onTap: (self, point) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$name — рейтинг $rating')),
+              SnackBar(
+                behavior: SnackBarBehavior.fixed,
+                duration: Duration(milliseconds: 2000),
+                content: GestureDetector(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                  child: Text('$name — рейтинг $rating'),
+                ),
+              ),
             );
           },
         ),
       );
     }
+
     objects.add(
       PlacemarkMapObject(
         mapId: const MapObjectId('user_marker'),
@@ -180,34 +310,13 @@ class _MapScreenState extends State<MapScreen> {
     if (!_mapReady) return;
     try {
       await _controller.moveCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: _userLocation, zoom: zoom)),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: _userLocation, zoom: zoom),
+        ),
         animation: const MapAnimation(type: MapAnimationType.smooth, duration: 0.6),
       );
     } catch (e) {
       debugPrint('Ошибка при перемещении камеры: $e');
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant MapScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final clubsChanged = oldWidget.clubs != widget.clubs;
-    final sortChanged = (oldWidget.sortBy ?? 'rating') != (widget.sortBy ?? 'rating');
-    final externalPosChanged = (oldWidget.userPosition?.latitude != widget.userPosition?.latitude) ||
-        (oldWidget.userPosition?.longitude != widget.userPosition?.longitude);
-
-    if ((clubsChanged || sortChanged || externalPosChanged) && _mapReady) {
-      if (widget.userPosition != null) {
-        _userLocation = Point(
-          latitude: widget.userPosition!.latitude,
-          longitude: widget.userPosition!.longitude,
-        );
-        _positionLoaded = true;
-      }
-      _updateMapObjects();
-      if ((widget.sortBy ?? 'rating') == 'distance' && _positionLoaded) {
-        _moveToUser();
-      }
     }
   }
 
@@ -246,8 +355,8 @@ class _MapScreenState extends State<MapScreen> {
           ),
           if (widget.showFloatingButton)
             Positioned(
-              right: 16,
-              bottom: 24,
+              right: 3,
+              bottom: 18,
               child: FloatingActionButton(
                 backgroundColor: AppColors.accentOrange,
                 onPressed: _moveToUser,

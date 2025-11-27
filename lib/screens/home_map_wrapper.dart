@@ -16,7 +16,7 @@ class HomeMapWrapper extends StatefulWidget {
 
 class _HomeMapWrapperState extends State<HomeMapWrapper> {
   bool _showMap = true;
-  String _currentSortBy = 'distance'; // по умолчанию — ближайшие клубы
+  String _currentSortBy = 'distance';
   List<Map<String, dynamic>> _clubs = [];
   List<Map<String, dynamic>> _filteredClubs = [];
   bool _isLoading = true;
@@ -34,7 +34,6 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     setState(() => _showMap = !_showMap);
   }
 
-  /// Получаем текущее местоположение пользователя
   Future<void> _determinePosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) throw Exception('Службы геолокации отключены.');
@@ -60,7 +59,6 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     });
   }
 
-  /// Загружаем клубы из Supabase и вычисляем расстояние
   Future<void> _fetchClubs() async {
     setState(() => _isLoading = true);
 
@@ -102,7 +100,6 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     }
   }
 
-  /// Поиск по имени и описанию
   void _applySearchFilter(String query) {
     List<Map<String, dynamic>> filtered;
 
@@ -120,7 +117,6 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     _applySorting(filtered);
   }
 
-  /// Сортировка — по близости или рейтингу
   void _applySorting(List<Map<String, dynamic>> list) {
     list.sort((a, b) {
       switch (_currentSortBy) {
@@ -145,7 +141,6 @@ class _HomeMapWrapperState extends State<HomeMapWrapper> {
     widget.onClubsUpdated?.call(_filteredClubs);
   }
 
-/// Меню фильтров с сортировкой
 void _showSortOptions() async {
   final result = await showMenu<String>(
     context: context,
@@ -162,10 +157,9 @@ void _showSortOptions() async {
     color: AppColors.cardBackground,
   );
 
-  // Если выбрали новый фильтр — применяем сортировку
   if (result != null && result != _currentSortBy) {
     setState(() => _currentSortBy = result);
-    _applySearchFilter(_searchController.text); // обновляем фильтр/сортировку
+    _applySearchFilter(_searchController.text);
   }
 }
 
@@ -243,6 +237,7 @@ PopupMenuItem<String> _buildSortItem(String title, String value) {
         title: appBarTitle,
         centerTitle: centerTitle,
         actions: [
+          if (!_showMap)
           IconButton(
             icon: const Icon(Icons.tune, color: AppColors.primaryText),
             onPressed: _showSortOptions,
@@ -260,6 +255,11 @@ PopupMenuItem<String> _buildSortItem(String title, String value) {
                 isLoading: _isLoading,
                 showAppBar: false,
                 showFloatingButton: true,
+                userPosition: _currentPosition,
+                sortBy: _currentSortBy,
+                onLocationReady: () async {
+                  await _fetchClubs();
+                },
               ),
               HomeFeedScreen(
                 clubs: _filteredClubs,
