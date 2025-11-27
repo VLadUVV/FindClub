@@ -146,6 +146,6 @@ lib/
 **Унгефук Владислав**
 
 📧 E-mail: [ungefuk.vlad@mail.ru]
-🐱 GitHub: [https://github.com/VLadUVV/FindClub]
+🐱 GitHub: [https://github.com/VLadUVV]
 
 ```
