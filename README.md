@@ -147,5 +147,3 @@ lib/
 
 📧 E-mail: [ungefuk.vlad@mail.ru]
 🐱 GitHub: [https://github.com/VLadUVV]
-
-```
